@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cellscope — Blood Cell Detection</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+
+  :root {
+    --paper: #F4F6F4;
+    --ink: #17241F;
+    --ink-soft: #4A5750;
+    --teal: #12332C;
+    --teal-soft: #3E6259;
+    --line: #D9DFDA;
+    --card: #FFFFFF;
+    --rbc: #C4472B;
+    --wbc: #D69A2D;
+    --plt: #5B4B8A;
+    --focus: #12332C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+  }
+
+  header {
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+  }
+
+  h1 {
+    font-family: 'Source Serif 4', serif;
+    font-weight: 700;
+    font-size: 2.4rem;
+    margin: 0 0 8px;
+    color: var(--teal);
+    letter-spacing: -0.01em;
+  }
+
+  .tagline {
+    color: var(--ink-soft);
+    font-size: 1.02rem;
+    max-width: 46ch;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .dropzone {
+    border: 1.5px dashed var(--teal-soft);
+    border-radius: 10px;
+    background: var(--card);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone.drag { border-color: var(--rbc); background: #FBF3F0; }
+  .dropzone:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+  .dropzone p { margin: 0; color: var(--ink-soft); }
+  .dropzone strong { color: var(--teal); }
+  .dropzone input { display: none; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 24px 0 8px;
+  }
+  .controls label {
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  input[type="range"] { flex: 1; accent-color: var(--teal); }
+  .conf-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.88rem;
+    min-width: 42px;
+    text-align: right;
+  }
+
+  .api-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 28px;
+  }
+  .api-row input[type="text"] {
+    flex: 1;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    background: var(--card);
+    color: var(--ink);
+  }
+  .api-row input[type="text"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+  .status { font-size: 0.88rem; color: var(--ink-soft); margin-bottom: 20px; min-height: 1.2em; }
+  .status.err { color: var(--rbc); }
+
+  .results {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 28px;
+    margin-top: 12px;
+  }
+  @media (max-width: 720px) {
+    .results { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .image-panel img { width: 100%; display: block; }
+  .image-panel .empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  .summary { padding: 22px; }
+  .summary h2 {
+    font-family: 'Source Serif 4', serif;
+    font-size: 1.15rem;
+    margin: 0 0 16px;
+    color: var(--teal);
+  }
+
+  .count-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .count-row:last-of-type { border-bottom: none; }
+  .count-name { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; }
+  .count-num { font-family: 'IBM Plex Mono', monospace; font-size: 1.05rem; }
+
+  .total-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1.5px solid var(--teal);
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+  }
+  .total-row .count-num { font-size: 1.2rem; color: var(--teal); }
+
+  .ratios { margin-top: 18px; font-size: 0.85rem; color: var(--ink-soft); }
+  .ratios div { display: flex; justify-content: space-between; padding: 4px 0; font-family: 'IBM Plex Mono', monospace; }
+
+  .export-btn {
+    margin-top: 20px;
+    width: 100%;
+    padding: 11px;
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .export-btn:disabled { background: var(--line); color: var(--ink-soft); cursor: not-allowed; }
+  .export-btn:hover:not(:disabled) { background: var(--teal-soft); }
+
+  .disclaimer {
+    margin-top: 44px;
+    padding: 16px 18px;
+    background: #FBF3F0;
+    border: 1px solid #EAD3CB;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: #6B3323;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Cellscope</h1>
+      <p class="tagline">Drop a blood smear microscopy image below to detect and count red cells, white cells, and platelets.</p>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--rbc)"></i>RBC</span>
+        <span><i class="dot" style="background:var(--wbc)"></i>WBC</span>
+        <span><i class="dot" style="background:var(--plt)"></i>Platelets</span>
+      </div>
+    </header>
+
+    <div class="api-row">
+      <label for="apiUrl" style="font-size:0.85rem;color:var(--ink-soft);white-space:nowrap;">API endpoint</label>
+      <input type="text" id="apiUrl" value="http://localhost:8000" spellcheck="false" />
+    </div>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload an image">
+      <p><strong>Click to upload</strong> or drag an image here</p>
+      <input type="file" id="fileInput" accept="image/*" />
+    </div>
+
+    <div class="controls">
+      <label for="confSlider">Confidence threshold</label>
+      <input type="range" id="confSlider" min="0.05" max="0.9" step="0.05" value="0.25" />
+      <span class="conf-value" id="confValue">0.25</span>
+    </div>
+
+    <p class="status" id="status"></p>
+
+    <div class="results" id="results" style="display:none;">
+      <div class="panel image-panel">
+        <img id="annotatedImg" alt="Annotated detection result" />
+      </div>
+      <div class="panel summary">
+        <h2>Detected cells</h2>
+        <div id="countsList"></div>
+        <div class="total-row">
+          <span>Total</span>
+          <span class="count-num" id="totalCount">0</span>
+        </div>
+        <div class="ratios" id="ratiosBox"></div>
+        <button class="export-btn" id="exportBtn" disabled>Download results as CSV</button>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      Educational demo only — this model is trained on a small public dataset and is not validated
+      for clinical or diagnostic use. Do not use it to make medical decisions.
+    </div>
+  </div>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const statusEl = document.getElementById('status');
+  const resultsEl = document.getElementById('results');
+  const annotatedImg = document.getElementById('annotatedImg');
+  const countsList = document.getElementById('countsList');
+  const totalCount = document.getElementById('totalCount');
+  const ratiosBox = document.getElementById('ratiosBox');
+  const exportBtn = document.getElementById('exportBtn');
+  const confSlider = document.getElementById('confSlider');
+  const confValue = document.getElementById('confValue');
+  const apiUrlInput = document.getElementById('apiUrl');
+
+  const classColors = { RBC: '#C4472B', WBC: '#D69A2D', Platelets: '#5B4B8A' };
+  let lastData = null;
+  let lastFile = null;
+
+  confSlider.addEventListener('input', () => {
+    confValue.textContent = confSlider.value;
+    if (lastFile) runPrediction(lastFile);
+  });
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') fileInput.click();
+  });
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.type.startsWith('image/')) {
+      setStatus('Please choose an image file.', true);
+      return;
+    }
+    lastFile = file;
+    runPrediction(file);
+  }
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg;
+    statusEl.className = isError ? 'status err' : 'status';
+  }
+
+  async function runPrediction(file) {
+    setStatus('Running detection…');
+    exportBtn.disabled = true;
+    const apiUrl = apiUrlInput.value.replace(/\/$/, '');
+    const conf = confSlider.value;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${apiUrl}/predict?conf=${conf}`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Request failed (${res.status})`);
+      }
+      const data = await res.json();
+      lastData = data;
+      renderResults(data);
+      setStatus(`Done — ${data.total_count} cell(s) detected.`);
+      exportBtn.disabled = data.total_count === 0;
+    } catch (err) {
+      setStatus(`Could not reach the API: ${err.message}`, true);
+      resultsEl.style.display = 'none';
+    }
+  }
+
+  function renderResults(data) {
+    resultsEl.style.display = 'grid';
+    annotatedImg.src = data.annotated_image;
+
+    countsList.innerHTML = '';
+    Object.entries(data.counts_by_class).forEach(([name, count]) => {
+      const color = classColors[name] || '#888';
+      const row = document.createElement('div');
+      row.className = 'count-row';
+      row.innerHTML = `
+        <span class="count-name"><i class="dot" style="background:${color}"></i>${name}</span>
+        <span class="count-num">${count}</span>`;
+      countsList.appendChild(row);
+    });
+
+    totalCount.textContent = data.total_count;
+
+    ratiosBox.innerHTML = '';
+    Object.entries(data.ratios || {}).forEach(([name, val]) => {
+      const row = document.createElement('div');
+      row.innerHTML = `<span>${name.replace(/_/g, ' ')}</span><span>${val}</span>`;
+      ratiosBox.appendChild(row);
+    });
+  }
+
+  exportBtn.addEventListener('click', () => {
+    if (!lastData) return;
+    const rows = [['class_name', 'confidence', 'x1', 'y1', 'x2', 'y2']];
+    lastData.detections.forEach((d) => {
+      rows.push([d.class_name, d.confidence, d.box.x1, d.box.y1, d.box.x2, d.box.y2]);
+    });
+    const csv = rows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cellscope_results.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>
